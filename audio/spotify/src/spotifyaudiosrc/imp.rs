@@ -18,7 +18,7 @@ use gst::subclass::prelude::*;
 use gst_base::subclass::{base_src::CreateSuccess, prelude::*};
 
 use librespot::core::{
-    cache::Cache, config::SessionConfig, session::Session, spotify_id::SpotifyId,
+    cache::Cache, config::SessionConfig, session::Session, spotify_id::{SpotifyAudioType, SpotifyId},
 };
 use librespot::discovery::Credentials;
 use librespot::playback::{
@@ -62,7 +62,6 @@ struct State {
     player_channel_handle: JoinHandle<()>,
 }
 
-#[derive(Default)]
 struct Settings {
     username: String,
     password: String,
@@ -70,6 +69,19 @@ struct Settings {
     cache_files: String,
     cache_max_size: u64,
     track: String,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            username: String::new(),
+            password: String::new(),
+            cache_credentials: std::env::var("SPOTIFY_CACHE_CREDS").unwrap_or_default(),
+            cache_files: String::new(),
+            cache_max_size: 100,
+            track: String::new(),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -83,6 +95,7 @@ impl ObjectSubclass for SpotifyAudioSrc {
     const NAME: &'static str = "GstSpotifyAudioSrc";
     type Type = super::SpotifyAudioSrc;
     type ParentType = gst_base::BaseSrc;
+    type Interfaces = (gst::URIHandler,);
 }
 
 impl ObjectImpl for SpotifyAudioSrc {
@@ -159,8 +172,16 @@ impl ObjectImpl for SpotifyAudioSrc {
                 settings.cache_max_size = value.get().expect("type checked upstream");
             }
             "track" => {
-                let mut settings = self.settings.lock().unwrap();
-                settings.track = value.get().expect("type checked upstream");
+                let track = value.get().expect("type checked upstream");
+                if let Err(err) = self.set_track(_obj, track) {
+                    gst_error!(
+                        CAT,
+                        obj: _obj,
+                        "Failed to set property `{}`: {:?}",
+                        pspec.name(),
+                        err
+                    );
+                }
             }
             _ => unimplemented!(),
         }
@@ -296,7 +317,47 @@ impl BaseSrcImpl for SpotifyAudioSrc {
     }
 }
 
+impl URIHandlerImpl for SpotifyAudioSrc {
+    const URI_TYPE: gst::URIType = gst::URIType::Src;
+
+    fn uri(&self, _element: &Self::Type) -> Option<String> {
+        let settings = self.settings.lock().unwrap();
+
+        Some(settings.track.clone())
+    }
+
+    fn set_uri(&self, element: &Self::Type, uri: &str) -> Result<(), glib::Error> {
+        self.set_track(element, uri)
+    }
+
+    fn protocols() -> &'static [&'static str] {
+        &["spotify"]
+    }
+
+}
+
 impl SpotifyAudioSrc {
+    fn set_track(&self, _element: &super::SpotifyAudioSrc, uri: &str) -> Result<(), glib::Error> {
+        let spotify_id = SpotifyId::from_uri(uri).map_err(|err| {
+            glib::Error::new(
+                gst::URIError::BadUri,
+                format!("Failed to parse Spotify URI '{}': {:?}", uri, err).as_str(),
+            )
+        })?;
+
+        if spotify_id.audio_type == SpotifyAudioType::NonPlayable {
+            return Err(glib::Error::new(
+                gst::URIError::BadUri,
+                format!("Unplayable Spotify URI '{}'", uri).as_str(),
+            ));
+        }
+
+        let mut settings = self.settings.lock().unwrap();
+        settings.track = String::from(uri);
+
+        Ok(())
+    }
+
     async fn setup(&self) -> anyhow::Result<()> {
         let src = self.instance();
 
