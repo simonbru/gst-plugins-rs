@@ -7,10 +7,12 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use std::sync::{mpsc, Arc, Mutex};
+use std::collections::HashMap;
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
 use tokio::{runtime, task::JoinHandle};
+use url::{Url, Position};
 
 use gst::glib;
 use gst::prelude::*;
@@ -327,7 +329,37 @@ impl URIHandlerImpl for SpotifyAudioSrc {
     }
 
     fn set_uri(&self, element: &Self::Type, uri: &str) -> Result<(), glib::Error> {
-        self.set_track(element, uri)
+        let spotify_uri = Url::parse(uri).map_err(|err| {
+            glib::Error::new(
+                gst::URIError::BadUri,
+                format!("Failed to parse Spotify URI '{}': {:?}", uri, err).as_str(),
+            )
+        })?;
+        assert!(spotify_uri.scheme() == "spotify");
+
+        assert!(spotify_uri.cannot_be_a_base());
+        let auth_query: HashMap<_, _> = spotify_uri.query_pairs().into_owned().collect();
+        let username = auth_query.get("username").ok_or(
+            glib::Error::new(
+                gst::URIError::BadUri,
+                format!("Failed to parse username from Spotify URI '{}'", uri).as_str(),
+            )
+        )?;
+        let password = auth_query.get("password").ok_or(
+            glib::Error::new(
+                gst::URIError::BadUri,
+                format!("Failed to parse password from Spotify URI '{}'", uri).as_str(),
+            )
+        )?;
+        let uri = spotify_uri[..Position::AfterPath].to_string();
+
+        {
+            let mut settings = self.settings.lock().unwrap();
+            settings.username = username.to_string();
+            settings.password = password.to_string();
+        }
+
+        self.set_track(element, &uri)
     }
 
     fn protocols() -> &'static [&'static str] {
