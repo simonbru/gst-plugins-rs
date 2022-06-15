@@ -343,7 +343,7 @@ impl URIHandlerImpl for SpotifyAudioSrc {
         assert!(spotify_uri.cannot_be_a_base());
         let auth_query: HashMap<_, _> = spotify_uri.query_pairs().into_owned().collect();
         if auth_query.contains_key("username") {
-            let username = auth_query.get("username").ok_or(glib::Error::new(
+            let username = auth_query.get("username").ok_or_else(|| glib::Error::new(
                 gst::URIError::BadUri,
                 format!("Failed to parse username from Spotify URI '{}'", uri).as_str(),
             ))?;
@@ -352,7 +352,7 @@ impl URIHandlerImpl for SpotifyAudioSrc {
         }
 
         if auth_query.contains_key("password") {
-            let password = auth_query.get("password").ok_or(glib::Error::new(
+            let password = auth_query.get("password").ok_or_else(|| glib::Error::new(
                 gst::URIError::BadUri,
                 format!("Failed to parse password from Spotify URI '{}'", uri).as_str(),
             ))?;
