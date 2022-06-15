@@ -6,13 +6,13 @@
 //
 // SPDX-License-Identifier: MPL-2.0
 
-use std::sync::{mpsc, Arc, Mutex};
 use std::collections::HashMap;
+use std::sync::{mpsc, Arc, Mutex};
 
 use anyhow::bail;
 use once_cell::sync::Lazy;
 use tokio::{runtime, task::JoinHandle};
-use url::{Url, Position};
+use url::{Position, Url};
 
 use gst::glib;
 use gst::prelude::*;
@@ -20,7 +20,10 @@ use gst::subclass::prelude::*;
 use gst_base::subclass::{base_src::CreateSuccess, prelude::*};
 
 use librespot::core::{
-    cache::Cache, config::SessionConfig, session::Session, spotify_id::{SpotifyAudioType, SpotifyId},
+    cache::Cache,
+    config::SessionConfig,
+    session::Session,
+    spotify_id::{SpotifyAudioType, SpotifyId},
 };
 use librespot::discovery::Credentials;
 use librespot::playback::{
@@ -340,23 +343,19 @@ impl URIHandlerImpl for SpotifyAudioSrc {
         assert!(spotify_uri.cannot_be_a_base());
         let auth_query: HashMap<_, _> = spotify_uri.query_pairs().into_owned().collect();
         if auth_query.contains_key("username") {
-            let username = auth_query.get("username").ok_or(
-                glib::Error::new(
-                    gst::URIError::BadUri,
-                    format!("Failed to parse username from Spotify URI '{}'", uri).as_str(),
-                )
-            )?;
+            let username = auth_query.get("username").ok_or(glib::Error::new(
+                gst::URIError::BadUri,
+                format!("Failed to parse username from Spotify URI '{}'", uri).as_str(),
+            ))?;
             let mut settings = self.settings.lock().unwrap();
             settings.username = username.to_string();
         }
 
         if auth_query.contains_key("password") {
-            let password = auth_query.get("password").ok_or(
-                glib::Error::new(
-                    gst::URIError::BadUri,
-                    format!("Failed to parse password from Spotify URI '{}'", uri).as_str(),
-                )
-            )?;
+            let password = auth_query.get("password").ok_or(glib::Error::new(
+                gst::URIError::BadUri,
+                format!("Failed to parse password from Spotify URI '{}'", uri).as_str(),
+            ))?;
             let mut settings = self.settings.lock().unwrap();
             settings.password = password.to_string();
         }
@@ -369,7 +368,6 @@ impl URIHandlerImpl for SpotifyAudioSrc {
     fn protocols() -> &'static [&'static str] {
         &["spotify"]
     }
-
 }
 
 impl SpotifyAudioSrc {
