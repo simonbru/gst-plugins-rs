@@ -79,10 +79,10 @@ struct Settings {
 impl Default for Settings {
     fn default() -> Self {
         Settings {
-            username: String::new(),
-            password: String::new(),
-            cache_credentials: std::env::var("SPOTIFY_CACHE_CREDS").unwrap_or_default(),
-            cache_files: String::new(),
+            username: std::env::var("GST_SPOTIFY_USERNAME").unwrap_or_default(),
+            password: std::env::var("GST_SPOTIFY_PASSWORD").unwrap_or_default(),
+            cache_credentials: std::env::var("GST_SPOTIFY_CACHE_CREDENTIALS").unwrap_or_default(),
+            cache_files: std::env::var("GST_SPOTIFY_CACHE_FILES").unwrap_or_default(),
             cache_max_size: 100,
             track: String::new(),
         }
